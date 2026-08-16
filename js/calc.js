@@ -1,3 +1,5 @@
+import { defaultPeople } from "./data.js";
+
 /** 円の文字から数字を取り出す。空なら null */
 export function parseYen(raw) {
   const text = String(raw ?? "").replace(/[,円\s]/g, "");
@@ -9,7 +11,7 @@ export function parseYen(raw) {
 
 /** 数字を 1,234円 の形にする */
 export function formatYen(n) {
-  return `${n.toLocaleString("ja-JP")}円`;
+  return `${Math.round(n).toLocaleString("ja-JP")}円`;
 }
 
 /** 記入済みの金額だけ足す */
@@ -32,11 +34,36 @@ export function toYear(monthly) {
   return monthly * 12;
 }
 
+/** 父と母を足す。どちらも空なら昔の1欄 */
+function pairYen(father, mother, fallback) {
+  const nums = [parseYen(father), parseYen(mother)].filter((n) => n != null && !Number.isNaN(n));
+  if (nums.length) return nums.reduce((a, b) => a + b, 0);
+  const old = parseYen(fallback);
+  if (old == null || Number.isNaN(old)) return null;
+  return old;
+}
+
+/** 介護者ごとの欄を足す。なければ昔の父・母欄 */
+function sumPersonField(costs, field) {
+  const map = costs[field];
+  if (map && typeof map === "object") {
+    const nums = Object.values(map)
+      .map((raw) => parseYen(raw))
+      .filter((n) => n != null && !Number.isNaN(n));
+    if (nums.length) return nums.reduce((a, b) => a + b, 0);
+  }
+  const fallback = typeof map === "string" ? map : "";
+  if (field === "care") return pairYen(costs.careFather, costs.careMother, fallback || costs.care);
+  if (field === "medical") return pairYen(costs.medicalFather, costs.medicalMother, fallback || costs.medical);
+  if (field === "funeral") return pairYen(costs.funeralFather, costs.funeralMother, fallback || costs.funeral);
+  return null;
+}
+
 /** これからかかる費用（月）を集計する */
 export function monthlyCosts(costs) {
   const living = parseYen(costs.living);
-  const care = parseYen(costs.care);
-  const medical = parseYen(costs.medical);
+  const care = sumPersonField(costs, "care");
+  const medical = sumPersonField(costs, "medical");
   const values = [living, care, medical];
   const nums = values.filter((n) => n != null && !Number.isNaN(n));
   return {
@@ -51,26 +78,31 @@ export function monthlyCosts(costs) {
 
 /** 今あるお金の合計を作る */
 export function makeSummary(data) {
-  const savings = filledSum(data.savings);
-  const insurance = filledSum(data.insurance);
-  const house = filledSum(data.house);
-  const loans = filledSum(data.loans);
-  const pension = filledSum(data.pension);
+  const savings = filledSum(data.savings || []);
+  const insurance = filledSum(data.insurance || []);
+  const investment = filledSum(data.investment || []);
+  const house = filledSum(data.house || []);
+  const workplace = filledSum(data.workplace || []);
+  const loans = filledSum(data.loans || []);
+  const pension = filledSum(data.pension || []);
+  const other = filledSum(data.other || []);
   const assets = {
-    sum: savings.sum + insurance.sum + house.sum,
-    known: savings.known || insurance.known || house.known
+    sum: savings.sum + insurance.sum + investment.sum + house.sum + workplace.sum + other.sum,
+    known: savings.known || insurance.known || investment.known || house.known || workplace.known || other.known
   };
   const cash = {
-    sum: savings.sum + insurance.sum,
-    known: savings.known || insurance.known
+    sum: savings.sum + insurance.sum + investment.sum + other.sum,
+    known: savings.known || insurance.known || investment.known || other.known
   };
   const blank =
-    hasBlank(data.savings) ||
-    hasBlank(data.insurance) ||
-    hasBlank(data.house) ||
-    hasBlank(data.loans) ||
-    hasBlank(data.pension);
-  return { assets, cash, loans, pension, blank };
+    hasBlank(data.savings || []) ||
+    hasBlank(data.insurance || []) ||
+    hasBlank(data.investment || []) ||
+    hasBlank(data.house || []) ||
+    hasBlank(data.workplace || []) ||
+    hasBlank(data.loans || []) ||
+    hasBlank(data.pension || []);
+  return { assets, cash, house, workplace, loans, pension, blank };
 }
 
 /** 年ごとの費用表を作る（毎年同じ金額） */
@@ -115,7 +147,7 @@ export function makeGap(data) {
   };
 }
 
-/** 貯金・保険で何年持つか */
+/** 手元資金で何年持つか */
 function cashYears(yearly, cash) {
   if (yearly == null || yearly >= 0 || !cash.known) return null;
   if (yearly === 0) return null;
@@ -135,44 +167,175 @@ export function validYen(raw) {
   return n;
 }
 
-/** 不足額に受験費用を足す。受験が空なら不足額だけ */
-function addExam(base, exam) {
-  if (base == null) return null;
-  if (exam == null) return base;
-  return base + exam;
+/** 分け方の重みを、人数に合わせて作る */
+function splitWeights(count, mode) {
+  if (mode === "sonMore") return Array.from({ length: count }, (_, i) => (i === 0 ? 2 : 1));
+  if (mode === "sonMost") return Array.from({ length: count }, (_, i) => (i === 0 ? 8 : 1));
+  return Array.from({ length: count }, () => 1);
 }
 
-/** 親の不足と、長男・3人分担を出す */
+/** 出せる人の重みで、不足額を分ける（1円単位） */
+export function splitShares(parentShort, pays, mode) {
+  if (parentShort == null) return pays.map(() => null);
+  const base = splitWeights(pays.length, mode);
+  const used = base.map((w, i) => (pays[i] ? w : 0));
+  const total = used.reduce((a, b) => a + b, 0);
+  if (total === 0) return pays.map(() => 0);
+  const raw = used.map((w) => (parentShort * w) / total);
+  const floors = raw.map((n) => Math.floor(n));
+  let leftover = parentShort - floors.reduce((a, b) => a + b, 0);
+  const order = raw
+    .map((n, i) => ({ i, frac: n - Math.floor(n), pay: pays[i] }))
+    .filter((x) => x.pay)
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  order.forEach((x) => {
+    if (leftover <= 0) return;
+    floors[x.i] += 1;
+    leftover -= 1;
+  });
+  return floors;
+}
+
+/** 1人分の負担と、用意できる額をまとめる */
+function personNeed(title, share, cash) {
+  return { title, share, cash, need: share };
+}
+
+/** 保存されている兄弟。なければ初期の3人 */
+function peopleList(data) {
+  if (data.people && data.people.length) return data.people;
+  return defaultPeople();
+}
+
+/** 援助する人の配列を作る */
+function helpPays(helpRow, people) {
+  const row = helpRow || {};
+  return people.map((person) => row[person.id] !== "no");
+}
+
+/** その項目で、その人が用意できる額 */
+function helpReadyCash(row, person) {
+  if (!row || row[person.id] === "no") return null;
+  return validYen(row[`${person.id}Cash`]);
+}
+
+/** 4項目の用意できる額を足す。なければ昔の合計欄 */
+function personHelpCash(help, person, fallback) {
+  const nums = Object.keys(help || {})
+    .map((id) => helpReadyCash(help[id], person))
+    .filter((n) => n != null);
+  if (nums.length) return nums.reduce((a, b) => a + b, 0);
+  return fallback;
+}
+
+/** 自分で足した項目を、足りるかの題目にする */
+function extraTopics(data) {
+  const costs = (data.extras && data.extras.costs) || [];
+  const help = (data.extras && data.extras.help) || [];
+  const fromCosts = costs.map((item) => ({
+    id: item.id,
+    title: item.label || "その他",
+    amount: validYen(item.amount)
+  }));
+  const used = new Set(fromCosts.map((item) => item.id));
+  const fromHelp = help
+    .filter((item) => !used.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      title: item.title || "その他",
+      amount: validYen(item.amount)
+    }));
+  return fromCosts.concat(fromHelp);
+}
+
+/** 手元資金に、売る前提の仕事場・家を足す */
+function salePool(summary, costs) {
+  const useWorkplace = costs.useWorkplace !== "no";
+  const useHouse = costs.useHouse === "yes";
+  const cash = summary.cash.known ? summary.cash.sum : 0;
+  const workplace = useWorkplace && summary.workplace.known ? summary.workplace.sum : 0;
+  const house = useHouse && summary.house.known ? summary.house.sum : 0;
+  return {
+    cash,
+    workplace,
+    house,
+    useWorkplace,
+    useHouse,
+    total: cash + workplace + house,
+    known: summary.cash.known || (useWorkplace && summary.workplace.known) || (useHouse && summary.house.known)
+  };
+}
+
+/** 親の資金を、介護→葬式→借金→片づけの順で充てる */
+function applyParentMoney(topics, pool) {
+  let left = pool;
+  return topics.map((item) => {
+    const amount = item.amount;
+    if (amount == null) return { ...item, covered: 0, remain: 0 };
+    const covered = Math.min(left, amount);
+    left -= covered;
+    return { ...item, covered, remain: amount - covered };
+  });
+}
+
+/** 親の資金を先に使い、残りを援助する兄弟で分ける */
 export function makeNeed(data) {
   const summary = makeSummary(data);
   const costs = monthlyCosts(data.costs);
   const years = Number(data.costs.years) || 10;
-  const yearlyIn = summary.pension.known ? summary.pension.sum * 12 : null;
-  const yearlyOut = costs.known ? costs.sum * 12 : null;
-  const funeral = validYen(data.costs.funeral);
-  const exam = validYen(data.costs.exam);
-  const ownCash = validYen(data.costs.ownCash);
-  const ready = yearlyIn != null && yearlyOut != null && summary.cash.known;
-  const net = ready
-    ? yearlyIn * years + summary.cash.sum - (yearlyOut * years + (funeral ?? 0))
-    : null;
-  const parentShort = net == null ? null : Math.max(0, -net);
-  const each = parentShort == null ? null : parentShort / 3;
+  const funeral = sumPersonField(data.costs, "funeral");
+  const cleanup = validYen(data.costs.cleanup);
+  const sonCash = validYen(data.costs.sonCash);
+  const splitMode = data.costs.splitMode || "equal";
+  const help = data.help || {};
+  const people = peopleList(data);
+  const cashFallback = {
+    son: sonCash,
+    daughter1: validYen(data.costs.daughter1Cash),
+    daughter2: validYen(data.costs.daughter2Cash)
+  };
+  const careYear = toYear(costs.care);
+  const careTotal = careYear == null ? null : careYear * years;
+  const topics = [
+    { id: "care", title: "介護", amount: careTotal },
+    { id: "funeral", title: "葬式", amount: funeral },
+    { id: "loans", title: "借金", amount: summary.loans.known ? summary.loans.sum : null },
+    { id: "cleanup", title: "家の片づけ", amount: cleanup },
+    ...extraTopics(data)
+  ];
+  const pool = salePool(summary, data.costs);
+  const items = applyParentMoney(topics, pool.total).map((item) => {
+    const pays = helpPays(help[item.id], people);
+    return {
+      ...item,
+      pays,
+      helpers: pays.filter(Boolean).length,
+      shares: splitShares(item.remain, pays, splitMode),
+      readyCash: people.map((person) => helpReadyCash(help[item.id], person))
+    };
+  });
+  const siblingShare = people.map((_, i) =>
+    items.reduce((sum, item) => sum + (item.shares[i] || 0), 0)
+  );
+  const known = items.some((item) => item.amount != null) && pool.known;
+  const parentShort = items.reduce((sum, item) => sum + (item.remain || 0), 0);
   return {
-    ready,
-    yearlyIn,
-    yearlyOut,
+    ready: known,
+    yearlyIn: summary.pension.known ? summary.pension.sum * 12 : null,
+    yearlyOut: costs.known ? costs.sum * 12 : null,
     years,
     funeral,
-    exam,
-    ownCash,
+    sonCash,
     cash: summary.cash,
-    parentShort,
-    parentLeft: net == null ? null : Math.max(0, net),
-    sonAll: parentShort,
-    each,
-    sonAllWithExam: addExam(parentShort, exam),
-    sonSplitWithExam: addExam(each, exam),
+    house: summary.house,
+    workplace: summary.workplace,
+    pool,
+    items,
+    parentShort: known ? parentShort : null,
+    splitMode,
+    people: people.map((person, i) =>
+      personNeed(person.title || "名前なし", siblingShare[i], personHelpCash(help, person, cashFallback[person.id]))
+    ),
     costBlank: costs.blank
   };
 }

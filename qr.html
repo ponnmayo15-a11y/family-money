@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QRコード | 家計ノート</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <section class="screen is-on">
+      <button class="back" type="button" onclick="location.href='index.html'">← もどる</button>
+      <header class="brand">
+        <small>スマホで読み取る</small>
+        <h1>QRコード</h1>
+      </header>
+      <div class="card">
+        <p>同じWi-Fiなら、カメラで読むと家計ノートが開きます。</p>
+        <img class="qr-img" src="qr.png" alt="家計ノートのQRコード">
+        <p class="hint">http://192.168.3.214:5174/</p>
+        <p class="hint">数字は、読んだ端末の中に保存されます。パソコンの数字とは別です。</p>
+        <a class="menu" href="index.html"><span>アプリを開く</span></a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
