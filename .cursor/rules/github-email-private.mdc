@@ -1,0 +1,12 @@
+---
+description: GitHubではGmailを使わず、非公開用メールだけを使う
+alwaysApply: true
+---
+
+# GitHub のメールは非公開
+
+- コミット・GitHub・リポジトリのファイルに、オーナーの Gmail を書かない
+- 作者メールは必ず `ponnmayo15-a11y@users.noreply.github.com`
+- 作者名は `ponnmayo15-a11y`
+- `git config` のグローバル設定は変えない。コミット時は `git -c user.name="ponnmayo15-a11y" -c user.email="ponnmayo15-a11y@users.noreply.github.com"` を使う
+- README や CLAUDE.md にも Gmail を載せない
