@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>親の介護と、子供の受験</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <section id="screen-home" class="screen is-on">
+      <header class="brand">
+        <small>メニュー</small>
+        <h1>家族のお金</h1>
+        <p>見たいものを押してください。数字はこの画面には出しません。</p>
+      </header>
+      <button class="menu" type="button" data-go="screen-money">
+        <span>親の今あるお金</span>
+        <small>貯金・年金・保険など</small>
+      </button>
+      <button class="menu" type="button" data-go="screen-costs">
+        <span>親にかかるお金</span>
+        <small>介護・暮らし・葬式</small>
+      </button>
+      <button class="menu" type="button" data-go="screen-own">
+        <span>自分の家</span>
+        <small>子供の受験</small>
+      </button>
+      <button class="menu menu-main" type="button" data-go="screen-gap">
+        <span>足りるか</span>
+        <small>中を開いて見る</small>
+      </button>
+      <p class="save-note">入力は自動で保存されます。今は、この端末の中だけに残ります。</p>
+    </section>
+
+    <section id="screen-money" class="screen">
+      <button class="back" type="button" data-go="screen-home">← もどる</button>
+      <h1 class="page-title">親の今あるお金</h1>
+      <section class="card summary" id="summary" aria-live="polite"></section>
+      <p class="hint">項目を押すと開きます。</p>
+      <div id="categories"></div>
+    </section>
+
+    <section id="screen-costs" class="screen">
+      <button class="back" type="button" data-go="screen-home">← もどる</button>
+      <h1 class="page-title">親にかかるお金</h1>
+      <section class="card cost-card" id="costs-card">
+        <h2>介護・暮らし・葬式</h2>
+        <p class="hint">月額は毎年同じとして計算します。葬式は1回分です。</p>
+
+        <label for="cost-living">生活費（月）</label>
+        <p class="hint">食費・光熱費・家賃など。通帳の引き出しからざっくりでOK。</p>
+        <input id="cost-living" data-cost="living" inputmode="numeric" placeholder="例：150000">
+
+        <label for="cost-care">介護費（月）</label>
+        <p class="hint">まだ始まっていなくても、将来かかる想定で入れてOK。</p>
+        <input id="cost-care" data-cost="care" inputmode="numeric" placeholder="例：80000">
+
+        <label for="cost-medical">病院・医療費（月）</label>
+        <p class="hint">薬代や通院。大きな入院は平均で入れてOK。</p>
+        <input id="cost-medical" data-cost="medical" inputmode="numeric" placeholder="例：20000">
+
+        <label for="cost-funeral">葬式（1回）</label>
+        <p class="hint">わからないときは 2000000（200万円）で仮置きしてOK。</p>
+        <input id="cost-funeral" data-cost="funeral" inputmode="numeric" placeholder="例：2000000">
+
+        <label for="years-select">介護を何年見る</label>
+        <select id="years-select">
+          <option value="5">5年</option>
+          <option value="10" selected>10年</option>
+          <option value="15">15年</option>
+          <option value="20">20年</option>
+        </select>
+      </section>
+      <section class="card" id="year-table"></section>
+    </section>
+
+    <section id="screen-own" class="screen">
+      <button class="back" type="button" data-go="screen-home">← もどる</button>
+      <h1 class="page-title">自分の家（長男）</h1>
+      <section class="card cost-card" id="own-card">
+        <h2>子供の受験</h2>
+        <p class="hint">塾・受験料・入学金など、これからかかる分の合計。</p>
+
+        <label for="cost-exam">受験・進学（合計）</label>
+        <input id="cost-exam" data-cost="exam" inputmode="numeric" placeholder="例：1000000">
+
+        <label for="cost-own">自分の家で用意できる額</label>
+        <p class="hint">空欄でも、用意が必要な額は出ます。</p>
+        <input id="cost-own" data-cost="ownCash" inputmode="numeric" placeholder="例：500000">
+      </section>
+    </section>
+
+    <section id="screen-gap" class="screen">
+      <button class="back" type="button" data-go="screen-home">← もどる</button>
+      <h1 class="page-title">足りるか</h1>
+      <section class="card summary" id="gap" aria-live="polite"></section>
+      <p class="save-note">家はすぐ現金にしない前提です。</p>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

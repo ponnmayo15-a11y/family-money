@@ -1,0 +1,9 @@
+{
+  "name": "family-money",
+  "private": true,
+  "type": "module",
+  "description": "親の介護・葬式と、子供の受験が重なったとき足りるかを見る",
+  "scripts": {
+    "start": "npx --yes serve . -l 5174"
+  }
+}
