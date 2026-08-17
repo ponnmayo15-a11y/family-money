@@ -12,6 +12,7 @@ npm start
 ```
 
 ブラウザで `http://localhost:5174` を開く。
+ウェブは `https://ponnmayo15-a11y.github.io/family-money/`（パソコンを閉じても開ける）。
 
 ## プロジェクト構成
 
