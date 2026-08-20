@@ -39,6 +39,72 @@ body {
   display: none;
 }
 
+#lock-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+html.locked #lock-screen {
+  display: flex;
+}
+
+html.locked .app {
+  display: none;
+}
+
+#lock-screen form {
+  width: min(320px, 90%);
+  background: var(--card);
+  border-radius: 20px;
+  padding: 28px 22px;
+  box-shadow: 0 10px 30px rgba(22, 50, 79, 0.08);
+  text-align: center;
+}
+
+#lock-screen h1 {
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-size: 22px;
+}
+
+#lock-screen p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#lock-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  font-size: 20px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  color: var(--text);
+}
+
+#lock-screen button {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--navy);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.lock-error {
+  color: var(--red) !important;
+}
+
 .screen.is-on {
   display: block;
 }
