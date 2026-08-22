@@ -123,41 +123,44 @@ export function yearRows(costs) {
   }));
 }
 
-/** 足りるかの数字を作る */
-export function makeGap(data) {
-  const summary = makeSummary(data);
-  const costs = monthlyCosts(data.costs);
-  const years = Number(data.costs.years) || 10;
-  const yearlyIn = summary.pension.known ? summary.pension.sum * 12 : null;
-  const yearlyOut = costs.known ? costs.sum * 12 : null;
-  const ready = yearlyIn != null && yearlyOut != null;
-  const yearly = ready ? yearlyIn - yearlyOut : null;
+/** 見る年数のあいだの、暮らし・介護・病院の不足。年金は差し引く */
+export function periodShort(summary, costs, years) {
+  const m = monthlyCosts(costs);
+  if (!m.known) return { amount: null, pensionBlank: false };
+  const out = m.sum * 12 * years;
+  if (!summary.pension.known) return { amount: out, pensionBlank: true };
+  const income = summary.pension.sum * 12 * years;
+  return { amount: Math.max(0, out - income), pensionBlank: false };
+}
+
+/** これまでの援助 1行の累計。毎月なら 月額×12×年数 */
+export function pastRowTotal(row) {
+  const amount = validYen(row && row.amount);
+  if (amount == null) return null;
+  if (!row || row.kind !== "monthly") return amount;
+  const years = Number(row.years);
+  if (!Number.isFinite(years) || years <= 0) return null;
+  return amount * 12 * years;
+}
+
+/** これまでの援助を、妻の実家・夫の実家で合計する */
+export function pastTotals(list = []) {
+  const sum = { wife: 0, husband: 0 };
+  const known = { wife: false, husband: false };
+  list.forEach((row) => {
+    const total = pastRowTotal(row);
+    if (total == null) return;
+    const side = row.side === "husband" ? "husband" : "wife";
+    sum[side] += total;
+    known[side] = true;
+  });
   return {
-    ready,
-    yearly,
-    yearlyIn,
-    yearlyOut,
-    years,
-    periodIn: yearlyIn != null ? yearlyIn * years : null,
-    periodOut: yearlyOut != null ? yearlyOut * years : null,
-    cash: summary.cash,
-    cashYears: cashYears(yearly, summary.cash),
-    leftoverShort: leftoverShort(yearly, years, summary.cash),
-    costBlank: costs.blank
+    wife: sum.wife,
+    husband: sum.husband,
+    known,
+    any: known.wife || known.husband,
+    diff: sum.wife - sum.husband
   };
-}
-
-/** 手元資金で何年持つか */
-function cashYears(yearly, cash) {
-  if (yearly == null || yearly >= 0 || !cash.known) return null;
-  if (yearly === 0) return null;
-  return cash.sum / -yearly;
-}
-
-/** 見通し期間のあと、まだ足りない額 */
-function leftoverShort(yearly, years, cash) {
-  if (yearly == null || yearly >= 0 || !cash.known) return null;
-  return Math.max(0, -yearly * years - cash.sum);
 }
 
 /** 使える数字だけ返す。空や不正は null */
@@ -271,7 +274,7 @@ function applyParentMoney(topics, pool) {
   let left = pool;
   return topics.map((item) => {
     const amount = item.amount;
-    if (amount == null) return { ...item, covered: 0, remain: 0 };
+    if (amount == null) return { ...item, covered: 0, remain: null };
     const covered = Math.min(left, amount);
     left -= covered;
     return { ...item, covered, remain: amount - covered };
@@ -294,10 +297,9 @@ export function makeNeed(data) {
     daughter1: validYen(data.costs.daughter1Cash),
     daughter2: validYen(data.costs.daughter2Cash)
   };
-  const careYear = toYear(costs.care);
-  const careTotal = careYear == null ? null : careYear * years;
+  const period = periodShort(summary, data.costs, years);
   const topics = [
-    { id: "care", title: "介護", amount: careTotal },
+    { id: "care", title: "介護・暮らし", amount: period.amount },
     { id: "funeral", title: "葬式", amount: funeral },
     { id: "loans", title: "借金", amount: summary.loans.known ? summary.loans.sum : null },
     { id: "cleanup", title: "家の片づけ", amount: cleanup },
@@ -336,6 +338,7 @@ export function makeNeed(data) {
     people: people.map((person, i) =>
       personNeed(person.title || "名前なし", siblingShare[i], personHelpCash(help, person, cashFallback[person.id]))
     ),
-    costBlank: costs.blank
+    costBlank: costs.blank,
+    pensionBlank: period.pensionBlank
   };
 }

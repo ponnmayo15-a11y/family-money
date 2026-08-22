@@ -74,47 +74,20 @@ export const CATEGORIES = [
   }
 ];
 
-/** これからかかる費用（月額） */
-export const COST_FIELDS = [
-  {
-    id: "living",
-    title: "生活費（月）",
-    placeholder: "例：150000",
-    hint: "食費・光熱費・家賃など。家の分なので1つ。"
-  },
-  {
-    id: "careFather",
-    title: "介護費・自分の父（月）",
-    placeholder: "例：80000",
-    hint: "自分の父の施設やヘルパー。"
-  },
-  {
-    id: "careMother",
-    title: "介護費・自分の母（月）",
-    placeholder: "例：80000",
-    hint: "自分の母の施設やヘルパー。"
-  },
-  {
-    id: "medicalFather",
-    title: "病院・自分の父（月）",
-    placeholder: "例：20000",
-    hint: "自分の父の薬代や通院。"
-  },
-  {
-    id: "medicalMother",
-    title: "病院・自分の母（月）",
-    placeholder: "例：20000",
-    hint: "自分の母の薬代や通院。"
-  }
-];
-
-/** 最初に出す介護者 */
+/** 最初に出す介護者。どちらの親も最初から数える */
 export function defaultCaregivers() {
   return [
-    { id: "father", title: "自分の父" },
-    { id: "mother", title: "自分の母" }
+    { id: "father", title: "夫の父" },
+    { id: "mother", title: "夫の母" },
+    { id: "wifeMother", title: "妻の母" }
   ];
 }
+
+/** これまでの援助を、どちらの家からか分ける */
+export const PAST_SIDES = [
+  { id: "wife", title: "妻の実家" },
+  { id: "husband", title: "夫の実家" }
+];
 
 /** 1人分の介護・病院・葬式の空欄 */
 export function emptyPersonCosts() {
@@ -141,7 +114,7 @@ export function defaultPeople() {
 
 /** 兄弟に援助を聞く4つ */
 export const HELP_ITEMS = [
-  { id: "care", title: "介護", hint: "介護者全員の、施設やヘルパー。" },
+  { id: "care", title: "介護・暮らし", hint: "生活費・介護・病院の合計から、年金を引いて残った分。見る年数ぶんです。" },
   { id: "funeral", title: "葬式", hint: "介護者それぞれ1回分の合計。" },
   { id: "loans", title: "借金", hint: "親のローンや借金の残り。" },
   { id: "cleanup", title: "家の片づけ", hint: "遺品整理や家の片付け。" }
@@ -169,6 +142,7 @@ export function emptyData() {
     other: [],
     people,
     caregivers,
+    past: [],
     extras: { costs: [], help: [] },
     costs: {
       living: "",

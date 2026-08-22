@@ -1,5 +1,5 @@
-import { CATEGORIES, SPLIT_MODES, HELP_ITEMS, emptyData, emptyHelp, emptyHelpRow, defaultPeople, defaultCaregivers, emptyCostMap } from "./data.js";
-import { parseYen, formatYen, makeSummary, yearRows, makeNeed, monthlyCosts } from "./calc.js";
+import { CATEGORIES, SPLIT_MODES, HELP_ITEMS, PAST_SIDES, emptyData, emptyHelp, emptyHelpRow, defaultPeople, defaultCaregivers, emptyCostMap } from "./data.js";
+import { parseYen, formatYen, makeSummary, yearRows, makeNeed, monthlyCosts, pastRowTotal, pastTotals } from "./calc.js";
 
 const STORAGE_KEY = "family-money-v1";
 const MAX_PEOPLE = 8;
@@ -19,6 +19,7 @@ function loadData() {
       caregivers,
       other: parsed.other || [],
       investment: parsed.investment || [],
+      past: migratePast(parsed),
       extras: {
         costs: (parsed.extras && parsed.extras.costs) || [],
         help: (parsed.extras && parsed.extras.help) || []
@@ -84,6 +85,19 @@ function migrateCaregivers(parsed) {
   return defaultCaregivers();
 }
 
+/** これまでの援助を、欠けない形に整える */
+function migratePast(parsed) {
+  if (!Array.isArray(parsed.past)) return [];
+  return parsed.past.map((row, i) => ({
+    id: String(row.id || `pa-${i}`),
+    side: row.side === "husband" ? "husband" : "wife",
+    label: String(row.label ?? ""),
+    amount: String(row.amount ?? ""),
+    kind: row.kind === "monthly" ? "monthly" : "once",
+    years: String(row.years ?? "")
+  }));
+}
+
 /** 兄弟の人数を、欠けない形に整える */
 function migratePeople(parsed) {
   if (Array.isArray(parsed.people) && parsed.people.length) {
@@ -125,6 +139,7 @@ function showScreen(id) {
     fillHelpCash();
   }
   if (id === "screen-gap") renderGap();
+  if (id === "screen-past") renderPast();
   window.scrollTo(0, 0);
 }
 
@@ -214,7 +229,7 @@ function renderPeople() {
 
 /** 介護者の名前と人数を描く */
 function renderCaregivers() {
-  renderNameList("caregivers", "caregiver-list", "add-caregiver", "人目", "例：自分の父");
+  renderNameList("caregivers", "caregiver-list", "add-caregiver", "人目", "例：夫の父");
 }
 
 /** 名前の一覧を描く */
@@ -422,6 +437,66 @@ function renderExtraCosts() {
     : '<p class="empty">まだありません。</p>';
 }
 
+/** これまでの援助 1行を描く */
+function pastRowHtml(row) {
+  const monthly = row.kind === "monthly";
+  const total = pastRowTotal(row);
+  const bad = Number.isNaN(parseYen(row.amount));
+  const sides = PAST_SIDES.map((side) => `
+    <button type="button" class="pick ${row.side === side.id ? "is-on" : ""}" data-act="past-side" data-id="${row.id}" data-side="${side.id}">${side.title}</button>`).join("");
+  const years = monthly
+    ? `<label>何年ぶん</label>
+      <input data-past-years="${row.id}" inputmode="numeric" value="${escapeHtml(row.years)}" placeholder="例：3">`
+    : "";
+  return `
+    <div class="past-row">
+      <div class="choice">${sides}</div>
+      <label>何をしてもらったか</label>
+      <input data-past-label="${row.id}" value="${escapeHtml(row.label)}" placeholder="例：住宅資金・車・塾代・食べ物">
+      <div class="choice">
+        <button type="button" class="pick ${monthly ? "" : "is-on"}" data-act="past-kind" data-id="${row.id}" data-kind="once">1回</button>
+        <button type="button" class="pick ${monthly ? "is-on" : ""}" data-act="past-kind" data-id="${row.id}" data-kind="monthly">毎月</button>
+      </div>
+      <label>${monthly ? "金額（月・円）" : "金額（円）"}</label>
+      <input data-past-amount="${row.id}" inputmode="numeric" class="${bad ? "is-bad" : ""}" value="${escapeHtml(row.amount)}" placeholder="例：20000">
+      ${years}
+      <p class="past-sum ${total == null ? "is-blank" : ""}" data-past-sum="${row.id}">${total == null ? "金額を入れると、累計が出ます。" : `累計 ${formatYen(total)}`}</p>
+      <button class="del" type="button" data-act="del-past" data-id="${row.id}">この行を消す</button>
+    </div>`;
+}
+
+/** これまでの援助の一覧と合計を描く */
+function renderPast() {
+  const list = state.past || [];
+  const box = document.getElementById("past-list");
+  if (box) {
+    box.innerHTML = list.length
+      ? list.map((row) => pastRowHtml(row)).join("")
+      : '<p class="empty">まだ入っていません。下のボタンから足せます。金額が分からないものは、名前だけでも残せます。</p>';
+  }
+  renderPastTotal();
+}
+
+/** これまでの援助の合計だけを描く */
+function renderPastTotal() {
+  const totals = pastTotals(state.past || []);
+  const totalBox = document.getElementById("past-total");
+  if (!totalBox) return;
+  totalBox.innerHTML = `
+    ${PAST_SIDES.map((side) => `
+      <div class="metric"><dt>${side.title}から</dt><dd class="${totals.known[side.id] ? "" : "is-blank"}">${totals.known[side.id] ? formatYen(totals[side.id]) : "まだわからない"}</dd></div>`).join("")}
+    <p class="note">${pastNote(totals)}</p>`;
+}
+
+/** 合計の下に出す一文 */
+function pastNote(totals) {
+  if (!totals.any) return "分かるところから足してください。空欄はゼロにしていません。";
+  if (!totals.known.wife || !totals.known.husband) return "片方だけの記録です。もう片方も足すと、両方が並びます。";
+  if (!totals.diff) return "いまの記録では、どちらも同じ額です。";
+  const side = totals.diff > 0 ? "妻の実家" : "夫の実家";
+  return `いまの記録では、${side}のほうが ${formatYen(Math.abs(totals.diff))} 多く出ています。金額に出ないものもあります。`;
+}
+
 /** 年ごとの表を描く */
 function renderYearTable() {
   const rows = yearRows(state.costs);
@@ -433,11 +508,14 @@ function renderYearTable() {
     return;
   }
   const m = monthlyCosts(state.costs);
+  const pension = makeSummary(state).pension;
+  const pensionYear = pension.known ? pension.sum * 12 : null;
   box.innerHTML = `
     <p class="break">1年あたり　生活 ${yenOrBlank(toYearSafe(m.living))} ／ 介護 ${yenOrBlank(toYearSafe(m.care))} ／ 病院 ${yenOrBlank(toYearSafe(m.medical))}</p>
     ${rows.map((row) => `<div class="year-row"><span>${row.year}年目</span><strong>${formatYen(row.total)}</strong></div>`).join("")}
     <p class="note">${rows.length}年分の合計　${formatYen(first.total * rows.length)}</p>
-    <p class="note">今は毎年同じ金額です。年によって変えたい場合は、あとから足せます。</p>`;
+    <p class="note">年金（1年）　${yenOrBlank(pensionYear)}${pensionYear == null ? "" : `　→　差し引くと ${rows.length}年で ${formatYen(Math.max(0, first.total * rows.length - pensionYear * rows.length))}`}</p>
+    <p class="note">この差し引いた額を、見通しの「介護・暮らし」に使います。今は毎年同じ金額です。</p>`;
 }
 
 /** 月額が使えるときだけ年額にする */
@@ -469,6 +547,7 @@ function renderGap() {
     <div class="metric"><dt>親の手元資金</dt><dd class="${need.cash.known ? "" : "is-blank"}">${need.cash.known ? formatYen(need.cash.sum) : "まだわからない"}</dd></div>
     <div class="metric"><dt>仕事場の売値</dt><dd class="${need.workplace.known ? "" : "is-blank"}">${need.workplace.known ? formatYen(need.workplace.sum) : "まだわからない"}</dd></div>
     <div class="metric wide"><dt>計算に使う親のお金</dt><dd>${formatYen(need.pool.total)}</dd></div>
+    ${need.pensionBlank ? '<p class="note">年金が未記入なので、暮らしの費用から差し引いていません。年金を入れると「介護・暮らし」が減ります。</p>' : ""}
     <div class="metric wide"><dt>兄弟が出す残り</dt><dd class="${need.parentShort == null ? "is-blank" : ""} ${need.parentShort ? "is-minus" : ""}">${need.parentShort == null ? "まだわからない" : formatYen(need.parentShort)}</dd></div>
     <div class="split">
       ${(need.items || []).map((item) => `
@@ -476,7 +555,7 @@ function renderGap() {
         <h3>${item.title}</h3>
         <p>かかる額 ${item.amount == null ? "まだわからない" : formatYen(item.amount)}</p>
         <p>親のお金で出す ${formatYen(item.covered)}</p>
-        <p>兄弟が出す <strong>${formatYen(item.remain)}</strong></p>
+        <p>兄弟が出す <strong>${yenOrBlank(item.remain)}</strong></p>
         <p class="note">${helpNote(item, names)}</p>
       </article>`).join("")}
       ${need.people.map((person) => `
@@ -490,6 +569,7 @@ function renderGap() {
 
 /** その項目を誰が援助するかの文 */
 function helpNote(item, names) {
+  if (item.remain == null) return "かかる額を入れると、ここに出ます。";
   if (!item.remain) return "親のお金で足ります。";
   const helpers = names.filter((_, i) => item.pays[i]);
   if (!helpers.length) return "援助する人がいないので、残りは分けられません。";
@@ -510,14 +590,14 @@ function needMessage(need) {
     return {
       kind: "",
       title: "まだ計算できません",
-      body: "親の手元資金と、介護・葬式・借金・片づけを入れると、足りるかが分かります。"
+      body: "親の手元資金と、生活費・介護・病院・葬式・借金・片づけを入れると、足りるかが分かります。"
     };
   }
   if (!need.parentShort) {
     return {
       kind: "is-ok",
       title: "親のお金で足りる",
-      body: "この見積もりでは、介護・葬式・借金・片づけは親のお金でまかなえます。"
+      body: "この見積もりでは、暮らし・介護・葬式・借金・片づけは親のお金でまかなえます。"
     };
   }
   return {
@@ -554,6 +634,7 @@ function render() {
   renderCaregivers();
   renderPersonFields();
   renderExtraCosts();
+  renderPast();
   renderHelp();
   fillHelpCash();
   fillCosts();
@@ -699,6 +780,38 @@ function removeCaregiver(id) {
   renderGap();
 }
 
+/** これまでの援助を1行足す */
+function addPast() {
+  if (!state.past) state.past = [];
+  state.past.push({ id: `pa-${Date.now()}`, side: "wife", label: "", amount: "", kind: "once", years: "" });
+  saveData(state);
+  renderPast();
+}
+
+/** これまでの援助を1行消す */
+function removePast(id) {
+  state.past = (state.past || []).filter((row) => row.id !== id);
+  saveData(state);
+  renderPast();
+}
+
+/** これまでの援助の入力を保存する。打っている欄は描き直さない */
+function updatePast(id, field, value) {
+  const row = (state.past || []).find((item) => item.id === id);
+  if (!row) return;
+  row[field] = value;
+  saveData(state);
+  const amount = document.querySelector(`[data-past-amount="${id}"]`);
+  if (amount) amount.classList.toggle("is-bad", Number.isNaN(parseYen(row.amount)));
+  const sum = document.querySelector(`[data-past-sum="${id}"]`);
+  if (sum) {
+    const total = pastRowTotal(row);
+    sum.textContent = total == null ? "金額を入れると、累計が出ます。" : `累計 ${formatYen(total)}`;
+    sum.classList.toggle("is-blank", total == null);
+  }
+  renderPastTotal();
+}
+
 /** かかるお金のその他を足す */
 function addExtraCost() {
   const item = { id: `x-${Date.now()}`, label: "", amount: "" };
@@ -805,6 +918,12 @@ document.querySelector(".app").addEventListener("input", (event) => {
   if (name) updatePersonName(name.dataset.personName, name.value);
   const caregiver = event.target.closest("[data-caregiver-name]");
   if (caregiver) updateCaregiverName(caregiver.dataset.caregiverName, caregiver.value);
+  const pastLabel = event.target.closest("[data-past-label]");
+  if (pastLabel) updatePast(pastLabel.dataset.pastLabel, "label", pastLabel.value);
+  const pastAmount = event.target.closest("[data-past-amount]");
+  if (pastAmount) updatePast(pastAmount.dataset.pastAmount, "amount", pastAmount.value);
+  const pastYears = event.target.closest("[data-past-years]");
+  if (pastYears) updatePast(pastYears.dataset.pastYears, "years", pastYears.value);
   const extraLabel = event.target.closest("[data-extra-cost-label]");
   if (extraLabel) {
     const item = (state.extras.costs || []).find((row) => row.id === extraLabel.dataset.extraCostLabel);
@@ -880,6 +999,27 @@ document.querySelector(".app").addEventListener("click", (event) => {
   const delCaregiver = event.target.closest("[data-act=del-caregiver]");
   if (delCaregiver) {
     removeCaregiver(delCaregiver.dataset.id);
+    return;
+  }
+  if (event.target.closest("[data-act=add-past]")) {
+    addPast();
+    return;
+  }
+  const delPast = event.target.closest("[data-act=del-past]");
+  if (delPast) {
+    removePast(delPast.dataset.id);
+    return;
+  }
+  const pastSide = event.target.closest("[data-act=past-side]");
+  if (pastSide) {
+    updatePast(pastSide.dataset.id, "side", pastSide.dataset.side);
+    renderPast();
+    return;
+  }
+  const pastKind = event.target.closest("[data-act=past-kind]");
+  if (pastKind) {
+    updatePast(pastKind.dataset.id, "kind", pastKind.dataset.kind);
+    renderPast();
     return;
   }
   if (event.target.closest("[data-act=add-extra-cost]")) {

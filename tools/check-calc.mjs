@@ -1,4 +1,4 @@
-import { makeSummary, yearRows, makeNeed, parseYen, splitShares } from "../js/calc.js";
+import { makeSummary, yearRows, makeNeed, parseYen, splitShares, pastRowTotal, pastTotals } from "../js/calc.js";
 
 function assert(name, cond) {
   if (!cond) throw new Error(name);
@@ -80,6 +80,40 @@ assert("家を入れると売値が足される", withHouse.pool.house === 15000
 
 const parts = splitShares(100, [true, false, true], "sonMore");
 assert("出せない人を除いて重みで分ける", parts[0] + parts[2] === 100 && parts[1] === 0);
+
+const monthlyOut = (150000 + 80000 + 60000 + 20000 + 10000) * 12 * 10;
+const pensionIn = 150000 * 12 * 10;
+const careItem = need.items.find((item) => item.id === "care");
+assert("介護・暮らしは生活と病院も入る", careItem.amount === monthlyOut - pensionIn);
+assert("年金が入っていれば注意は出ない", need.pensionBlank === false);
+
+const noPension = makeNeed({ ...data, pension: [] });
+const noPensionCare = noPension.items.find((item) => item.id === "care");
+assert("年金が未記入なら差し引かない", noPensionCare.amount === monthlyOut);
+assert("年金が未記入なら注意が出る", noPension.pensionBlank === true);
+
+const richPension = makeNeed({ ...data, pension: [{ amount: "999999999" }] });
+const richCare = richPension.items.find((item) => item.id === "care");
+assert("年金が多くてもマイナスにしない", richCare.amount === 0);
+
+assert("1回の援助はそのまま", pastRowTotal({ amount: "2000000", kind: "once" }) === 2000000);
+assert("毎月の援助は月額×12×年", pastRowTotal({ amount: "20000", kind: "monthly", years: "3" }) === 20000 * 12 * 3);
+assert("毎月で年数が空なら未記入", pastRowTotal({ amount: "20000", kind: "monthly", years: "" }) == null);
+assert("金額が空なら未記入", pastRowTotal({ amount: "", kind: "once" }) == null);
+
+const past = pastTotals([
+  { side: "wife", amount: "20000000", kind: "once" },
+  { side: "husband", amount: "20000", kind: "monthly", years: "3" }
+]);
+assert("実家ごとに足す", past.wife === 20000000 && past.husband === 20000 * 12 * 3);
+assert("差は妻の実家からの引き算", past.diff === 20000000 - 20000 * 12 * 3);
+assert("記録がなければ未記入", pastTotals([]).any === false);
+
+const noLoan = makeNeed({ ...data, loans: [] });
+const noLoanItem = noLoan.items.find((item) => item.id === "loans");
+assert("かかる額が未記入なら兄弟の分も未記入", noLoanItem.remain === null);
+assert("未記入の項目は分担も未記入", noLoanItem.shares.every((n) => n === null));
+assert("未記入の項目は残りに足さない", noLoan.parentShort === need.parentShort - 1000000);
 
 const withReady = makeNeed({
   ...data,

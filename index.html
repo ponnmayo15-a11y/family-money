@@ -45,6 +45,10 @@
         <span>兄弟</span>
         <small>援助できるか</small>
       </button>
+      <button class="menu" type="button" data-go="screen-past">
+        <span>これまでの援助</span>
+        <small>どちらの実家から、何をしてもらったか</small>
+      </button>
       <button class="menu menu-sub" type="button" data-go="screen-settings">
         <span>設定</span>
         <small>兄弟の人数・介護者の人数</small>
@@ -93,8 +97,8 @@
         <div id="extra-costs"></div>
         <button class="add" type="button" data-act="add-extra-cost">その他を足す</button>
 
-        <label for="years-select">介護を何年見る</label>
-        <p class="hint">介護者全員を、同じ年数で見ます。</p>
+        <label for="years-select">何年分を見る</label>
+        <p class="hint">生活費・介護・病院を、この年数ぶん見ます。介護者全員が同じ年数です。</p>
         <select id="years-select">
           <option value="5">5年</option>
           <option value="10" selected>10年</option>
@@ -133,9 +137,23 @@
       </section>
       <section class="card cost-card" id="caregiver-card">
         <h2>介護者の人数</h2>
-        <p class="hint">自分の父・母など、これからお金がかかる人です。1人は残ります。最大8人です。</p>
+        <p class="hint">これからお金がかかる人です。夫の父・母だけでなく、妻の母もはじめから入っています。1人は残ります。最大8人です。</p>
         <div id="caregiver-list"></div>
         <button class="add" type="button" data-act="add-caregiver" id="add-caregiver">介護者を足す</button>
+      </section>
+    </section>
+
+    <section id="screen-past" class="screen">
+      <button class="back" type="button" data-go="screen-home">← もどる</button>
+      <h1 class="page-title">これまでの援助</h1>
+      <section class="card">
+        <h2 class="card-title">くらべる画面ではありません</h2>
+        <p class="hint">これは、どちらが多いかを決めるための画面ではありません。頭の中にしかなかったものを、二人で見えるようにするための画面です。お金だけでなく、車・食べ物・手伝いも書けます。</p>
+      </section>
+      <section class="card summary" id="past-total" aria-live="polite"></section>
+      <section class="card">
+        <div id="past-list"></div>
+        <button class="add" type="button" data-act="add-past">これまでの援助を足す</button>
       </section>
     </section>
 
@@ -144,6 +162,7 @@
       <h1 class="page-title">見通し</h1>
       <section class="card summary" id="gap" aria-live="polite"></section>
       <p class="save-note">仕事場は最初から売る前提です。家は、入れるを押したときだけ足します。</p>
+      <p class="save-note">「介護・暮らし」は、生活費・介護・病院の合計から年金を引いて、見る年数をかけた額です。</p>
     </section>
   </main>
   <script type="module" src="js/app.js?v=4"></script>

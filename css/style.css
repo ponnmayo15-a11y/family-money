@@ -677,3 +677,53 @@ html.locked .app {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.card-title {
+  margin: 0 0 6px;
+  color: var(--navy);
+  font-size: 18px;
+}
+
+.past-row {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.past-row label {
+  display: block;
+  margin: 4px 0 6px;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.past-row input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font: inherit;
+  color: var(--text);
+  background: #fff;
+}
+
+.past-row input.is-bad {
+  border-color: var(--red);
+  background: #fff6f4;
+}
+
+.past-sum {
+  margin: 2px 0 8px;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.past-sum.is-blank {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
